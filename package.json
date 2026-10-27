@@ -1,6 +1,16 @@
 {
   "name": "chronostream",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "license": "MIT",
+  "keywords": [
+    "sse",
+    "server-sent-events",
+    "realtime",
+    "redis",
+    "pubsub",
+    "hono",
+    "bun"
+  ],
   "description": "Ultra-lightweight Server-Sent Events (SSE) Real-Time Broadcasting Engine powered by Hono and Redis Pub/Sub",
   "type": "module",
   "main": "src/index.ts",

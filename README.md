@@ -10,6 +10,9 @@ ChronoStream allows any third-party backend (Laravel, Python, Go, Node.js, Supab
 
 - **Native Browser Compatibility**: Uses the browser's built-in `EventSource` API. No proprietary client SDKs or heavy WebSocket libraries required.
 - **Shared Subscription Multiplexing**: Exactly 2 Redis connections per ChronoStream server instance (`redisPub` and `redisSub`), regardless of how many thousands of browser connections are open.
+- **Multi-Channel Subscription**: Subscribe to multiple channels over a single SSE connection (`GET /stream?channel=orders,alerts`).
+- **Private Channel HMAC Auth**: Restrict sensitive channels (`private:*` and `private-*`) with cryptographically signed tokens issued via `POST /auth/token`.
+- **Missed Message Replay (`Last-Event-ID`)**: Bounded Redis and in-memory ring buffers controlled by `HISTORY_SIZE` and `HISTORY_TTL_SECONDS` for automatic message recovery upon reconnection.
 - **Zero Memory Leaks**: Guaranteed cleanup on client disconnect (`stream.onAbort`) and automatic Redis `UNSUBSCRIBE` as soon as a channel has zero active local listeners.
 - **Upstash & Redis Cloud Ready**: First-class support for standard TCP (`redis://`) and TLS (`rediss://`) connections.
 - **Dual Ingestion**: Publish events either via the authenticated `POST /publish` HTTP endpoint or directly via native Redis `PUBLISH` from your backend workers.
@@ -119,6 +122,16 @@ bun test
 
 ## Running with Docker
 
+### Using Docker Compose (Recommended)
+
+Start ChronoStream alongside a configured Redis container with a single command:
+
+```bash
+docker compose up -d
+```
+
+### Manual Docker Build
+
 Run using the production multi-stage Docker image:
 
 ```bash
@@ -173,9 +186,11 @@ Check system health, uptime, Redis connection statuses, and active channel liste
 ---
 
 ### 2. Connect SSE Stream
-Establish a persistent Server-Sent Events stream for a specific channel.
+Establish a persistent Server-Sent Events stream for one or more channels.
 
-- **URL**: `GET /stream?channel=:channelName`
+- **URL**: `GET /stream?channel=:channels[&token=:hmacToken]`
+- **Headers Sent by Client (Optional)**:
+  - `Last-Event-ID`: ID of the last received event to automatically replay missed messages upon reconnection.
 - **Headers Sent by Server**:
   - `Content-Type: text/event-stream`
   - `Cache-Control: no-cache, no-transform`
@@ -185,12 +200,14 @@ Establish a persistent Server-Sent Events stream for a specific channel.
 **Query Parameters**:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `channel` | string | Yes | The channel identifier to subscribe to |
+| `channel` | string | Yes | Single channel name or comma-separated list of channels (e.g. `orders,alerts`) |
+| `token` | string | Optional | Cryptographic HMAC token required when subscribing to private channels (`private:*` or `private-*`) |
+| `lastEventId` | string | Optional | Query parameter alternative to `Last-Event-ID` header for missed message replay |
 
 **Events Sent to Client**:
-1. `connected`: Initial handshake containing server timestamp and channel confirmation.
+1. `connected`: Initial handshake containing server timestamp, active channels confirmation, and connection metadata.
 2. `ping`: Keep-alive event sent every 25 seconds.
-3. Custom events: Any events published to this channel.
+3. Custom events: Real-time events broadcasted to any of the subscribed channels.
 
 ---
 
@@ -222,7 +239,7 @@ Publish an event to a channel for immediate broadcast to all connected clients.
 | `channel` | string | Yes | Target channel name |
 | `data` | any | Yes | Event payload (JSON object, array, or string) |
 | `event` | string | No | SSE event name (default: `"message"`) |
-| `id` | string | No | Event identifier for client deduplication / reconnect |
+| `id` | string | No | Event identifier for client deduplication and missed message replay |
 | `retry` | number | No | Reconnection time in milliseconds for the client |
 
 **Response `(200 OK)`**:
@@ -233,6 +250,39 @@ Publish an event to a channel for immediate broadcast to all connected clients.
   "event": "order.created",
   "subscribers": 1,
   "timestamp": "2026-10-27T13:45:00.000Z"
+}
+```
+
+---
+
+### 4. Generate Private Channel Token
+Issue a cryptographically signed HMAC-SHA256 token to authorize client connections to private channels (`private:*` or `private-*`).
+
+- **URL**: `POST /auth/token`
+- **Authentication**: `Authorization: Bearer <PUBLISH_SECRET_KEY>`
+- **Content-Type**: `application/json`
+
+**Request Body**:
+```json
+{
+  "channel": "private:user-42",
+  "ttlSeconds": 3600
+}
+```
+
+**Field Specifications**:
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `channel` | string | Yes | Target private channel name or comma-separated list of private channels |
+| `ttlSeconds` | number | No | Token lifetime in seconds (default: `3600`) |
+
+**Response `(200 OK)`**:
+```json
+{
+  "success": true,
+  "channel": "private:user-42",
+  "token": "1793114400.a3f8c9b1d2e4...",
+  "expiresAt": 1793114400
 }
 ```
 
