@@ -1,0 +1,21 @@
+{
+  "name": "chronostream",
+  "version": "1.0.0",
+  "description": "Ultra-lightweight Server-Sent Events (SSE) Real-Time Broadcasting Engine powered by Hono and Redis Pub/Sub",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "ioredis": "^5.4.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/ioredis": "^5.0.0",
+    "typescript": "^5.7.2"
+  }
+}
