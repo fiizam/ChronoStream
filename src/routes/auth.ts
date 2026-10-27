@@ -42,11 +42,9 @@ authRoute.post('/auth/token', authMiddleware, async (c) => {
   }
 
   // Normalize single or comma-separated channel scope
-  const normalizedChannel = channel
-    .split(',')
-    .map((ch) => ch.trim())
-    .filter(Boolean)
-    .join(',');
+  const normalizedChannel = Array.from(
+    new Set(channel.split(',').map((ch) => ch.trim()).filter(Boolean))
+  ).join(',');
 
   if (!normalizedChannel) {
     return c.json(
