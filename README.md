@@ -1,5 +1,7 @@
 # ChronoStream
 
+[![CI](https://github.com/fiizam/ChronoStream/actions/workflows/ci.yml/badge.svg)](https://github.com/fiizam/ChronoStream/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
 Ultra-lightweight Server-Sent Events (SSE) Real-Time Broadcasting Engine powered by **Bun**, **Hono**, and **Redis Pub/Sub** (Upstash compatible).
 
 ChronoStream allows any third-party backend (Laravel, Python, Go, Node.js, Supabase, PHP) to push real-time events to thousands of web browsers using the native browser `EventSource` API with zero client-side dependencies.
@@ -80,7 +82,7 @@ flowchart TD
 ### 1. Installation
 
 ```bash
-git clone https://github.com/your-org/chronostream.git
+git clone https://github.com/fiizam/ChronoStream.git
 cd chronostream
 bun install
 ```

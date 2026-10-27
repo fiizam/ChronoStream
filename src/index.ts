@@ -30,7 +30,7 @@ app.get('/', (c) => {
     service: 'ChronoStream',
     description: 'Server-Sent Events (SSE) Real-Time Broadcasting Engine',
     version: '1.1.0',
-    documentation: 'https://github.com/your-org/chronostream',
+    documentation: 'https://github.com/fiizam/ChronoStream',
     endpoints: {
       health: 'GET /health',
       stream: 'GET /stream?channel=:name[&token=:hmacToken]',
