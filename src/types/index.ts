@@ -42,6 +42,8 @@ export interface EnvConfig {
   REDIS_URL: string;
   PUBLISH_SECRET_KEY: string;
   ALLOWED_ORIGINS: string[];
+  HISTORY_SIZE: number;
+  HISTORY_TTL_SECONDS: number;
 }
 
 export type ActiveStream = SSEStreamingApi;

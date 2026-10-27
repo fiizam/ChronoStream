@@ -1,16 +1,17 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 import { env } from '../src/config/env.ts';
-import { authMiddleware } from '../src/middleware/auth.ts';
 import { healthRoute } from '../src/routes/health.ts';
 import { publishRoute } from '../src/routes/publish.ts';
 import { streamRoute } from '../src/routes/stream.ts';
+import { authRoute } from '../src/routes/auth.ts';
 import { redisPub, redisSub } from '../src/lib/redis.ts';
 
 const app = new Hono();
 app.route('/', healthRoute);
 app.route('/', publishRoute);
 app.route('/', streamRoute);
+app.route('/', authRoute);
 
 describe('API Route Handlers', () => {
   beforeAll(async () => {
@@ -19,6 +20,7 @@ describe('API Route Handlers', () => {
       await new Promise((r) => setTimeout(r, 200));
     }
   });
+
   it('GET /health returns 200 with server metrics', async () => {
     const res = await app.request('/health');
     expect(res.status).toBe(200);
@@ -121,12 +123,99 @@ describe('API Route Handlers', () => {
     expect(typeof data.subscribers).toBe('number');
   });
 
+  it('POST /auth/token returns 401 without Authorization header', async () => {
+    const res = await app.request('/auth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel: 'private:user-123' }),
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /auth/token returns 400 when channel is missing', async () => {
+    const res = await app.request('/auth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.PUBLISH_SECRET_KEY}`,
+      },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /auth/token returns 200 with generated HMAC token', async () => {
+    const res = await app.request('/auth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.PUBLISH_SECRET_KEY}`,
+      },
+      body: JSON.stringify({
+        channel: 'private:tenant-99, private-audit',
+        ttlSeconds: 1800,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.channel).toBe('private:tenant-99,private-audit');
+    expect(data.token).toBeDefined();
+    expect(typeof data.token).toBe('string');
+    expect(data.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
+  });
+
   it('GET /stream returns 400 when channel query param is missing', async () => {
     const res = await app.request('/stream');
     expect(res.status).toBe(400);
 
     const data = await res.json();
     expect(data.error).toBe('Bad Request');
+  });
+
+  it('GET /stream rejects private channels without token with 401', async () => {
+    const res = await app.request('/stream?channel=private:secure-feed');
+    expect(res.status).toBe(401);
+    const data = await res.json();
+    expect(data.error).toBe('Unauthorized');
+  });
+
+  it('GET /stream rejects private channels with invalid token with 401', async () => {
+    const res = await app.request('/stream?channel=private:secure-feed&token=123456.invalid');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /stream accepts private channel when valid HMAC token is provided', async () => {
+    // Generate valid token
+    const authRes = await app.request('/auth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.PUBLISH_SECRET_KEY}`,
+      },
+      body: JSON.stringify({ channel: 'private:secure-feed' }),
+    });
+
+    expect(authRes.status).toBe(200);
+    const authData = await authRes.json();
+
+    // Connect with token
+    const streamRes = await app.request(
+      `/stream?channel=private:secure-feed&token=${authData.token}`
+    );
+    expect(streamRes.status).toBe(200);
+    expect(streamRes.headers.get('Content-Type')).toContain('text/event-stream');
+    await streamRes.body?.cancel();
+  });
+
+  it('GET /stream supports multi-channel subscription', async () => {
+    const res = await app.request('/stream?channel=channel1,channel2');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('text/event-stream');
+    await res.body?.cancel();
   });
 
   it('GET /stream initiates SSE with appropriate streaming headers', async () => {

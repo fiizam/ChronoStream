@@ -48,11 +48,23 @@ function parseSecretKey(val: string | undefined): string {
   return val.trim();
 }
 
+function parsePositiveInt(val: string | undefined, defaultVal: number): number {
+  if (!val) return defaultVal;
+  const parsed = parseInt(val, 10);
+  if (isNaN(parsed) || parsed < 1) {
+    console.warn(`[ChronoStream:env] Invalid number "${val}", falling back to ${defaultVal}`);
+    return defaultVal;
+  }
+  return parsed;
+}
+
 export const env: EnvConfig = {
   PORT: parsePort(process.env.PORT, 3000),
   REDIS_URL: parseRedisUrl(process.env.REDIS_URL),
   PUBLISH_SECRET_KEY: parseSecretKey(process.env.PUBLISH_SECRET_KEY),
   ALLOWED_ORIGINS: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
+  HISTORY_SIZE: parsePositiveInt(process.env.HISTORY_SIZE, 50),
+  HISTORY_TTL_SECONDS: parsePositiveInt(process.env.HISTORY_TTL_SECONDS, 300),
 };
 
 export function getEnvSummary(): Record<string, string | number | string[]> {
@@ -78,5 +90,7 @@ export function getEnvSummary(): Record<string, string | number | string[]> {
     REDIS_URL: maskedRedisUrl,
     PUBLISH_SECRET_KEY: maskedKey,
     ALLOWED_ORIGINS: env.ALLOWED_ORIGINS,
+    HISTORY_SIZE: env.HISTORY_SIZE,
+    HISTORY_TTL_SECONDS: env.HISTORY_TTL_SECONDS,
   };
 }

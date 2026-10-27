@@ -2,9 +2,11 @@ import type { Redis } from 'ioredis';
 import type { SSEStreamingApi } from 'hono/streaming';
 import type { BrokerStats, PublishPayload } from '../types/index.ts';
 import { redisPub, redisSub } from './redis.ts';
+import { env } from '../config/env.ts';
 
 export class ChannelBroker {
   private channels = new Map<string, Set<SSEStreamingApi>>();
+  private history = new Map<string, Array<{ id?: string; event: string; data: string; retry?: number }>>();
   private redisPub: Redis;
   private redisSub: Redis;
 
@@ -70,6 +72,7 @@ export class ChannelBroker {
 
   /**
    * Publishes an event to a Redis channel for broadcast across all cluster nodes.
+   * Also records into history ring-buffer if payload.id is specified.
    */
   async publish(channel: string, payload: PublishPayload): Promise<number> {
     const stringifiedData =
@@ -84,7 +87,91 @@ export class ChannelBroker {
       retry: payload.retry,
     });
 
+    // Record into history ring-buffer if an event id is provided
+    if (payload.id && typeof payload.id === 'string' && payload.id.trim() !== '') {
+      const historyItem = {
+        id: payload.id,
+        event: payload.event || 'message',
+        data: stringifiedData,
+        retry: payload.retry,
+      };
+
+      // In-memory bounded buffer
+      let historyList = this.history.get(channel);
+      if (!historyList) {
+        historyList = [];
+        this.history.set(channel, historyList);
+      }
+      historyList.push(historyItem);
+      if (historyList.length > env.HISTORY_SIZE) {
+        historyList.splice(0, historyList.length - env.HISTORY_SIZE);
+      }
+
+      // Persist to Redis key if available
+      if (typeof (this.redisPub as any).rpush === 'function') {
+        const key = `chronostream:history:${channel}`;
+        const serialized = JSON.stringify(historyItem);
+        try {
+          await (this.redisPub as any).rpush(key, serialized);
+          if (typeof (this.redisPub as any).ltrim === 'function') {
+            await (this.redisPub as any).ltrim(key, -env.HISTORY_SIZE, -1);
+          }
+          if (typeof (this.redisPub as any).expire === 'function') {
+            await (this.redisPub as any).expire(key, env.HISTORY_TTL_SECONDS);
+          }
+        } catch (err) {
+          console.warn(`[ChronoStream:broker] Failed to persist history for "${channel}":`, err);
+        }
+      }
+    }
+
     return await this.redisPub.publish(channel, messagePayload);
+  }
+
+  /**
+   * Retrieves missed messages for replay after lastEventId.
+   */
+  async getMissedMessages(
+    channel: string,
+    lastEventId: string
+  ): Promise<Array<{ id?: string; event: string; data: string; retry?: number }>> {
+    if (!lastEventId || typeof lastEventId !== 'string') {
+      return [];
+    }
+
+    let rawStrings: string[] | null = null;
+    if (typeof (this.redisPub as any).lrange === 'function') {
+      try {
+        const key = `chronostream:history:${channel}`;
+        const list = await (this.redisPub as any).lrange(key, 0, -1);
+        if (Array.isArray(list) && list.length > 0) {
+          rawStrings = list;
+        }
+      } catch (err) {
+        console.warn(`[ChronoStream:broker] Failed to read history from Redis for "${channel}":`, err);
+      }
+    }
+
+    let items: Array<{ id?: string; event: string; data: string; retry?: number }>;
+    if (rawStrings !== null) {
+      items = rawStrings
+        .map((s) => {
+          try {
+            return JSON.parse(s);
+          } catch {
+            return null;
+          }
+        })
+        .filter((item): item is { id?: string; event: string; data: string; retry?: number } => item !== null);
+    } else {
+      items = this.history.get(channel) || [];
+    }
+
+    const index = items.findIndex((msg) => msg.id === lastEventId);
+    if (index !== -1) {
+      return items.slice(index + 1);
+    }
+    return [];
   }
 
   /**
@@ -166,6 +253,7 @@ export class ChannelBroker {
       await this.redisSub.unsubscribe(...activeChannels);
     }
     this.channels.clear();
+    this.history.clear();
   }
 }
 

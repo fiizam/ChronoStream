@@ -1,0 +1,29 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: chronostream-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  chronostream:
+    build: .
+    container_name: chronostream-engine
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - PUBLISH_SECRET_KEY=changeme
+      - ALLOWED_ORIGINS=*
+      - HISTORY_SIZE=50
+      - HISTORY_TTL_SECONDS=300
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped

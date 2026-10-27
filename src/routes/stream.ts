@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { broker } from '../lib/broker.ts';
+import { isPrivateChannel, verifyChannelToken } from '../lib/token.ts';
 
 export const streamRoute = new Hono();
 
 streamRoute.get('/stream', async (c) => {
-  const channel = c.req.query('channel');
+  const channelParam = c.req.query('channel');
 
-  if (!channel || channel.trim().length === 0) {
+  if (!channelParam || channelParam.trim().length === 0) {
     return c.json(
       {
         error: 'Bad Request',
@@ -17,21 +18,50 @@ streamRoute.get('/stream', async (c) => {
     );
   }
 
-  const trimmedChannel = channel.trim();
+  // Parse comma-separated channels and deduplicate
+  const channels = Array.from(
+    new Set(channelParam.split(',').map((ch) => ch.trim()).filter(Boolean))
+  );
+
+  if (channels.length === 0) {
+    return c.json(
+      {
+        error: 'Bad Request',
+        message: 'At least one valid channel name must be provided.',
+      },
+      400
+    );
+  }
+
+  const normalizedScope = channels.join(',');
+
+  // Verify HMAC token if any requested channel is private
+  if (channels.some(isPrivateChannel)) {
+    const token = c.req.query('token');
+    if (!verifyChannelToken(normalizedScope, token)) {
+      return c.json(
+        {
+          error: 'Unauthorized',
+          message: 'Valid token required for private channel(s).',
+        },
+        401
+      );
+    }
+  }
 
   // Prevent proxy buffering (e.g. Nginx, Cloudflare)
   c.header('X-Accel-Buffering', 'no');
   c.header('Cache-Control', 'no-cache, no-transform');
 
   return streamSSE(c, async (stream) => {
-    // Register client with in-memory multiplexer and subscribe to Redis if first listener
-    await broker.addClient(trimmedChannel, stream);
+    // Register client with in-memory multiplexer for all target channels
+    await Promise.all(channels.map((ch) => broker.addClient(ch, stream)));
 
     let isCleanedUp = false;
     const cleanup = async () => {
       if (!isCleanedUp) {
         isCleanedUp = true;
-        await broker.removeClient(trimmedChannel, stream);
+        await Promise.all(channels.map((ch) => broker.removeClient(ch, stream)));
       }
     };
 
@@ -45,11 +75,28 @@ streamRoute.get('/stream', async (c) => {
       await stream.writeSSE({
         event: 'connected',
         data: JSON.stringify({
-          channel: trimmedChannel,
+          channel: normalizedScope,
+          channels,
           connectedAt: new Date().toISOString(),
-          message: `Connected to ChronoStream on channel "${trimmedChannel}"`,
+          message: `Connected to ChronoStream on channel(s) "${normalizedScope}"`,
         }),
       });
+
+      // Replay missed messages if Last-Event-ID or lastEventId query param is provided
+      const lastEventId = c.req.header('Last-Event-ID') || c.req.query('lastEventId');
+      if (lastEventId) {
+        for (const ch of channels) {
+          const missedMessages = await broker.getMissedMessages(ch, lastEventId);
+          for (const msg of missedMessages) {
+            await stream.writeSSE({
+              event: msg.event,
+              data: msg.data,
+              id: msg.id,
+              retry: msg.retry,
+            });
+          }
+        }
+      }
 
       // 25-second heartbeat loop to prevent intermediate proxy/NAT timeouts
       const HEARTBEAT_INTERVAL_MS = 25000;

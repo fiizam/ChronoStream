@@ -4,6 +4,7 @@ import { corsMiddleware } from './middleware/cors.ts';
 import { healthRoute } from './routes/health.ts';
 import { publishRoute } from './routes/publish.ts';
 import { streamRoute } from './routes/stream.ts';
+import { authRoute } from './routes/auth.ts';
 import { broker } from './lib/broker.ts';
 import { closeRedis } from './lib/redis.ts';
 
@@ -28,12 +29,13 @@ app.get('/', (c) => {
   return c.json({
     service: 'ChronoStream',
     description: 'Server-Sent Events (SSE) Real-Time Broadcasting Engine',
-    version: '1.0.0',
+    version: '1.1.0',
     documentation: 'https://github.com/your-org/chronostream',
     endpoints: {
       health: 'GET /health',
-      stream: 'GET /stream?channel=:name',
+      stream: 'GET /stream?channel=:name[&token=:hmacToken]',
       publish: 'POST /publish (Bearer token required)',
+      authToken: 'POST /auth/token (Bearer token required)',
     },
   });
 });
@@ -42,6 +44,7 @@ app.get('/', (c) => {
 app.route('/', healthRoute);
 app.route('/', publishRoute);
 app.route('/', streamRoute);
+app.route('/', authRoute);
 
 // 404 handler
 app.notFound((c) => {
