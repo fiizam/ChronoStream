@@ -506,7 +506,7 @@
       setStatus('connecting', 'Connecting...');
 
       eventSource = new EventSource(streamUrl);
-      registeredEvents = new Set();
+      registeredEvents = new Set(['message', 'connected', 'ping']);
 
       eventSource.onopen = () => {
         setStatus('connected', `Connected: ${channel}`);

@@ -134,5 +134,6 @@ describe('API Route Handlers', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('text/event-stream');
     expect(res.headers.get('Cache-Control')).toContain('no-cache');
+    await res.body?.cancel();
   });
 });
