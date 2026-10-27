@@ -451,6 +451,7 @@
 
   <script>
     let eventSource = null;
+    let registeredEvents = new Set();
     let events = [];
 
     const serverUrlInput = document.getElementById('serverUrlInput');
@@ -482,6 +483,16 @@
       }
     }
 
+    function registerCustomEvent(eventName) {
+      if (!eventSource || !eventName) return;
+      const trimmed = eventName.trim();
+      if (!trimmed || registeredEvents.has(trimmed)) return;
+      registeredEvents.add(trimmed);
+      eventSource.addEventListener(trimmed, (e) => {
+        handleIncomingSSE(trimmed, e);
+      });
+    }
+
     function connectSSE() {
       const baseUrl = serverUrlInput.value.trim().replace(/\/$/, '');
       const channel = channelInput.value.trim();
@@ -495,6 +506,7 @@
       setStatus('connecting', 'Connecting...');
 
       eventSource = new EventSource(streamUrl);
+      registeredEvents = new Set();
 
       eventSource.onopen = () => {
         setStatus('connected', `Connected: ${channel}`);
@@ -517,11 +529,12 @@
         handleIncomingSSE('ping', e);
       });
 
-      // Capture any custom events dynamically
-      const originalAddEventListener = eventSource.addEventListener;
-      eventSource.addEventListener = function(type, listener, options) {
-        return originalAddEventListener.call(this, type, listener, options);
-      };
+      registerCustomEvent('order.created');
+      registerCustomEvent('system.alert');
+      registerCustomEvent('chat.message');
+      if (eventNameInput.value) {
+        registerCustomEvent(eventNameInput.value);
+      }
     }
 
     function disconnectSSE() {
@@ -529,6 +542,7 @@
         eventSource.close();
         eventSource = null;
       }
+      registeredEvents.clear();
       setStatus('disconnected', 'Disconnected');
     }
 
@@ -611,6 +625,8 @@
       const token = secretKeyInput.value.trim();
       const eventName = eventNameInput.value.trim();
       const rawData = eventDataInput.value.trim();
+
+      registerCustomEvent(eventName);
 
       publishFeedback.className = 'response-feedback';
       publishFeedback.textContent = '';

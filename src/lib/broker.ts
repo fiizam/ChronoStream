@@ -38,7 +38,10 @@ export class ChannelBroker {
         console.log(`[ChronoStream:broker] Subscribed to Redis channel "${channel}" (first client)`);
       } catch (err) {
         // Rollback state if subscription fails
-        this.channels.delete(channel);
+        clientSet.delete(stream);
+        if (clientSet.size === 0) {
+          this.channels.delete(channel);
+        }
         console.error(`[ChronoStream:broker] Failed to subscribe to "${channel}":`, err);
         throw err;
       }
