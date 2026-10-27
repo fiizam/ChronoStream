@@ -37,13 +37,14 @@ flowchart TD
     end
 
     subgraph RedisCluster ["Redis / Upstash Pub/Sub"]
-        R_PUB["redisPub (Dedicated Publisher)"]
-        R_SUB["redisSub (Dedicated Subscriber)"]
+        R_BROKER["Redis Pub/Sub Channel Bus"]
     end
 
     subgraph ChronoStream ["ChronoStream Engine (Bun + Hono)"]
+        R_PUB["redisPub (Dedicated Publisher)"]
+        R_SUB["redisSub (Dedicated Subscriber)"]
         BROKER["ChannelBroker (Singleton Multiplexer)"]
-        CH_MAP["In-Memory Map: channel -> Set<SSEStream>"]
+        CH_MAP["In-Memory Map: channel to Set of SSEStreams"]
     end
 
     subgraph Clients ["Browser Clients (Native EventSource API)"]
@@ -53,9 +54,9 @@ flowchart TD
     end
 
     HTTP_PUB -->|Bearer Token| R_PUB
-    R_PUB -->|Publish Event| RedisCluster
-    DIRECT_PUB -->|Publish Event| RedisCluster
-    RedisCluster -->|Message Event| R_SUB
+    R_PUB -->|PUBLISH| R_BROKER
+    DIRECT_PUB -->|PUBLISH| R_BROKER
+    R_BROKER -->|SUBSCRIBE Message| R_SUB
     R_SUB --> BROKER
     BROKER --> CH_MAP
     CH_MAP -->|stream.writeSSE| C1
