@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'bun:test';
-import { ChannelBroker } from '../src/lib/broker.ts';
+import { ChannelBroker } from '../src/lib/broker';
 import type { SSEStreamingApi } from 'hono/streaming';
 
 class MockRedisHub {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
-import { env } from '../src/config/env.ts';
-import { rateLimitMiddleware, resetRateLimitStore } from '../src/middleware/rateLimit.ts';
+import { env } from '../src/config/env';
+import { rateLimitMiddleware, resetRateLimitStore } from '../src/middleware/rateLimit';
 
 describe('Sliding-Window Rate Limiter Middleware', () => {
   const originalMax = env.RATE_LIMIT_MAX;

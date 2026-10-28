@@ -1,8 +1,8 @@
 import type { Redis } from 'ioredis';
 import type { SSEStreamingApi } from 'hono/streaming';
-import type { BrokerStats, PublishPayload } from '../types/index.ts';
-import { redisPub, redisSub } from './redis.ts';
-import { env } from '../config/env.ts';
+import type { BrokerStats, PublishPayload } from '../types/index';
+import { redisPub, redisSub } from './redis';
+import { env } from '../config/env';
 
 export class ChannelBroker {
   private channels = new Map<string, Set<SSEStreamingApi>>();

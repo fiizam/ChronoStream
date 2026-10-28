@@ -1,5 +1,5 @@
 import { Redis, type RedisOptions } from 'ioredis';
-import { env } from '../config/env.ts';
+import { env } from '../config/env';
 
 function createRedisClient(role: 'pub' | 'sub'): Redis {
   const options: RedisOptions = {

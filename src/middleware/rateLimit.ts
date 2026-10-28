@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono';
-import { env } from '../config/env.ts';
+import { env } from '../config/env';
 
 const WINDOW_MS = 60_000;
 const requestTimestamps = new Map<string, number[]>();

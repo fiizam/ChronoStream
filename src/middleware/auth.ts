@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono';
-import { env } from '../config/env.ts';
+import { env } from '../config/env';
 
 /**
  * Constant-time string comparison to prevent timing attacks on token verification.
