@@ -65,6 +65,7 @@ export const env: EnvConfig = {
   ALLOWED_ORIGINS: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
   HISTORY_SIZE: parsePositiveInt(process.env.HISTORY_SIZE, 50),
   HISTORY_TTL_SECONDS: parsePositiveInt(process.env.HISTORY_TTL_SECONDS, 300),
+  RATE_LIMIT_MAX: parsePositiveInt(process.env.RATE_LIMIT_MAX, 120),
 };
 
 export function getEnvSummary(): Record<string, string | number | string[]> {
@@ -92,5 +93,6 @@ export function getEnvSummary(): Record<string, string | number | string[]> {
     ALLOWED_ORIGINS: env.ALLOWED_ORIGINS,
     HISTORY_SIZE: env.HISTORY_SIZE,
     HISTORY_TTL_SECONDS: env.HISTORY_TTL_SECONDS,
+    RATE_LIMIT_MAX: env.RATE_LIMIT_MAX,
   };
 }
