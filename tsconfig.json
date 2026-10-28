@@ -1,11 +1,11 @@
 {
   "compilerOptions": {
     "lib": ["ESNext", "DOM"],
-    "module": "ESNext",
+    "module": "CommonJS",
     "target": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
     "moduleDetection": "force",
-    "allowImportingTsExtensions": true,
     "noEmit": true,
     "composite": false,
     "strict": true,
