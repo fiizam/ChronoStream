@@ -455,6 +455,9 @@
     let events = [];
 
     const serverUrlInput = document.getElementById('serverUrlInput');
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+      serverUrlInput.value = window.location.origin;
+    }
     const channelInput = document.getElementById('channelInput');
     const toggleConnectBtn = document.getElementById('toggleConnectBtn');
     const statusBadge = document.getElementById('statusBadge');

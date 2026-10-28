@@ -5,6 +5,7 @@ import { healthRoute } from '../src/routes/health.ts';
 import { publishRoute } from '../src/routes/publish.ts';
 import { streamRoute } from '../src/routes/stream.ts';
 import { authRoute } from '../src/routes/auth.ts';
+import { playgroundRoute } from '../src/routes/playground.ts';
 import { redisPub, redisSub } from '../src/lib/redis.ts';
 
 const app = new Hono();
@@ -12,6 +13,7 @@ app.route('/', healthRoute);
 app.route('/', publishRoute);
 app.route('/', streamRoute);
 app.route('/', authRoute);
+app.route('/', playgroundRoute);
 
 describe('API Route Handlers', () => {
   beforeAll(async () => {
@@ -224,5 +226,13 @@ describe('API Route Handlers', () => {
     expect(res.headers.get('Content-Type')).toContain('text/event-stream');
     expect(res.headers.get('Cache-Control')).toContain('no-cache');
     await res.body?.cancel();
+  });
+
+  it('GET /playground returns 200 with HTML explorer UI', async () => {
+    const res = await app.request('/playground');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('text/html');
+    const html = await res.text();
+    expect(html).toContain('ChronoStream');
   });
 });
