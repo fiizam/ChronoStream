@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import { broker } from '../lib/broker.ts';
-import { isPrivateChannel, verifyChannelToken } from '../lib/token.ts';
+import { broker } from '../lib/broker';
+import { isPrivateChannel, verifyChannelToken } from '../lib/token';
 
 export const streamRoute = new Hono();
 

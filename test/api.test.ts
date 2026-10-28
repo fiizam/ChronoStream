@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
-import { env } from '../src/config/env.ts';
-import { healthRoute } from '../src/routes/health.ts';
-import { publishRoute } from '../src/routes/publish.ts';
-import { streamRoute } from '../src/routes/stream.ts';
-import { authRoute } from '../src/routes/auth.ts';
-import { playgroundRoute } from '../src/routes/playground.ts';
-import { redisPub, redisSub } from '../src/lib/redis.ts';
+import { env } from '../src/config/env';
+import { healthRoute } from '../src/routes/health';
+import { publishRoute } from '../src/routes/publish';
+import { streamRoute } from '../src/routes/stream';
+import { authRoute } from '../src/routes/auth';
+import { playgroundRoute } from '../src/routes/playground';
+import { redisPub, redisSub } from '../src/lib/redis';
 
 const app = new Hono();
 app.route('/', healthRoute);

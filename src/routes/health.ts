@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import { redisPub, redisSub } from '../lib/redis.ts';
-import { broker } from '../lib/broker.ts';
-import type { HealthResponse } from '../types/index.ts';
+import { redisPub, redisSub } from '../lib/redis';
+import { broker } from '../lib/broker';
+import type { HealthResponse } from '../types/index';
 
 export const healthRoute = new Hono();
 

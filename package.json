@@ -16,7 +16,6 @@
     "bun"
   ],
   "description": "Ultra-lightweight Server-Sent Events (SSE) Real-Time Broadcasting Engine powered by Hono and Redis Pub/Sub",
-  "type": "module",
   "main": "src/index.ts",
   "scripts": {
     "dev": "bun --watch src/index.ts",

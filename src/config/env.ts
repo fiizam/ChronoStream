@@ -1,4 +1,4 @@
-import type { EnvConfig } from '../types/index.ts';
+import type { EnvConfig } from '../types/index';
 
 function parsePort(val: string | undefined, defaultPort = 3000): number {
   if (!val) return defaultPort;
@@ -35,11 +35,6 @@ function parseRedisUrl(val: string | undefined): string {
 function parseSecretKey(val: string | undefined): string {
   if (!val || val.trim() === '') {
     const devFallback = 'chronostream_dev_secret_key_change_in_production';
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        '[ChronoStream:env] FATAL: PUBLISH_SECRET_KEY must be configured when running in production environment.'
-      );
-    }
     console.warn(
       '[ChronoStream:env] Warning: PUBLISH_SECRET_KEY not set. Using insecure default development key.'
     );

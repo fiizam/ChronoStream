@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import { authMiddleware } from '../middleware/auth.ts';
-import { broker } from '../lib/broker.ts';
-import type { PublishPayload } from '../types/index.ts';
+import { authMiddleware } from '../middleware/auth';
+import { broker } from '../lib/broker';
+import type { PublishPayload } from '../types/index';
 
 export const publishRoute = new Hono();
 

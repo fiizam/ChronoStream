@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
-import { env, getEnvSummary } from './config/env.ts';
-import { corsMiddleware } from './middleware/cors.ts';
-import { rateLimitMiddleware } from './middleware/rateLimit.ts';
-import { healthRoute } from './routes/health.ts';
-import { publishRoute } from './routes/publish.ts';
-import { streamRoute } from './routes/stream.ts';
-import { authRoute } from './routes/auth.ts';
-import { playgroundRoute } from './routes/playground.ts';
-import { broker } from './lib/broker.ts';
-import { closeRedis } from './lib/redis.ts';
+import { env, getEnvSummary } from './config/env';
+import { corsMiddleware } from './middleware/cors';
+import { rateLimitMiddleware } from './middleware/rateLimit';
+import { healthRoute } from './routes/health';
+import { publishRoute } from './routes/publish';
+import { streamRoute } from './routes/stream';
+import { authRoute } from './routes/auth';
+import { playgroundRoute } from './routes/playground';
+import { broker } from './lib/broker';
+import { closeRedis } from './lib/redis';
 
 export const app = new Hono();
 

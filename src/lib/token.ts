@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { env } from '../config/env.ts';
+import { env } from '../config/env';
 
 /**
  * Checks whether a channel requires private authentication token.

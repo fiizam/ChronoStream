@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { authMiddleware } from '../middleware/auth.ts';
-import { generateChannelToken } from '../lib/token.ts';
+import { authMiddleware } from '../middleware/auth';
+import { generateChannelToken } from '../lib/token';
 
 export const authRoute = new Hono();
 
