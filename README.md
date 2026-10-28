@@ -15,6 +15,9 @@ ChronoStream allows any third-party backend (Laravel, Python, Go, Node.js, Supab
 - **Multi-Channel Subscription**: Subscribe to multiple channels over a single SSE connection (`GET /stream?channel=orders,alerts`).
 - **Private Channel HMAC Auth**: Restrict sensitive channels (`private:*` and `private-*`) with cryptographically signed tokens issued via `POST /auth/token`.
 - **Missed Message Replay (`Last-Event-ID`)**: Bounded Redis and in-memory ring buffers controlled by `HISTORY_SIZE` and `HISTORY_TTL_SECONDS` for automatic message recovery upon reconnection.
+- **Batch Event Publishing (`POST /publish/batch`)**: Broadcast up to 50 events across channels in a single HTTP request.
+- **Built-In Interactive Playground (`GET /playground`)**: Inspect live SSE streams and test publishing directly in your browser.
+- **Sliding-Window IP Rate Limiting**: Configurable per-IP protection (`RATE_LIMIT_MAX`) with `X-RateLimit-*` headers.
 - **Zero Memory Leaks**: Guaranteed cleanup on client disconnect (`stream.onAbort`) and automatic Redis `UNSUBSCRIBE` as soon as a channel has zero active local listeners.
 - **Upstash & Redis Cloud Ready**: First-class support for standard TCP (`redis://`) and TLS (`rediss://`) connections.
 - **Dual Ingestion**: Publish events either via the authenticated `POST /publish` HTTP endpoint or directly via native Redis `PUBLISH` from your backend workers.
@@ -103,6 +106,9 @@ PORT=3000
 REDIS_URL=redis://127.0.0.1:6379
 PUBLISH_SECRET_KEY=your_strong_secret_key_here
 ALLOWED_ORIGINS=*
+HISTORY_SIZE=50
+HISTORY_TTL_SECONDS=300
+RATE_LIMIT_MAX=120
 ```
 
 ### 3. Start Development Server
@@ -111,7 +117,7 @@ ALLOWED_ORIGINS=*
 bun run dev
 ```
 
-The server will start on `http://localhost:3000`.
+The server will start on `http://localhost:3000` (interactive explorer at `http://localhost:3000/playground`).
 
 ### 4. Run Automated Tests
 
@@ -219,6 +225,7 @@ Publish an event to a channel for immediate broadcast to all connected clients.
 
 - **URL**: `POST /publish`
 - **Authentication**: `Authorization: Bearer <PUBLISH_SECRET_KEY>`
+- **Rate Limit**: `RATE_LIMIT_MAX` requests/min per IP (`X-RateLimit-Limit`, `X-RateLimit-Remaining`)
 - **Content-Type**: `application/json`
 
 **Request Body**:
@@ -258,7 +265,47 @@ Publish an event to a channel for immediate broadcast to all connected clients.
 
 ---
 
-### 4. Generate Private Channel Token
+### 4. Batch Publish Events
+Publish between 1 and 50 events in a single HTTP request.
+
+- **URL**: `POST /publish/batch`
+- **Authentication**: `Authorization: Bearer <PUBLISH_SECRET_KEY>`
+- **Content-Type**: `application/json`
+
+**Request Body**:
+```json
+{
+  "events": [
+    {
+      "channel": "orders",
+      "event": "order.created",
+      "data": { "orderId": "ord_9981" }
+    },
+    {
+      "channel": "notifications",
+      "event": "user.alert",
+      "data": { "message": "New order received" }
+    }
+  ]
+}
+```
+
+**Response `(200 OK)`**:
+```json
+{
+  "success": true,
+  "count": 2,
+  "results": [
+    { "channel": "orders", "event": "order.created", "subscribers": 1 },
+    { "channel": "notifications", "event": "user.alert", "subscribers": 1 }
+  ],
+  "timestamp": "2026-10-28T09:30:00.000Z"
+}
+```
+
+---
+
+### 5. Generate Private Channel Token
 Issue a cryptographically signed HMAC-SHA256 token to authorize client connections to private channels (`private:*` or `private-*`).
 
 - **URL**: `POST /auth/token`
@@ -402,13 +449,13 @@ redis-cli PUBLISH orders '{"event":"order.created","data":{"order_id":1042,"tota
 
 ---
 
-## Interactive Testing UI
+## Interactive Testing UI (`GET /playground`)
 
-ChronoStream includes an interactive test client in `examples/client.html`.
+ChronoStream serves a built-in interactive SSE explorer at `GET /playground` (backed by `examples/client.html`).
 
-To run it:
+To use it:
 1. Start ChronoStream: `bun run dev`
-2. Open `examples/client.html` in your browser.
+2. Visit `http://localhost:3000/playground` in your browser (or open `examples/client.html` directly).
 3. Connect to a channel (e.g. `demo-stream`), send test broadcasts using the built-in publisher console, and watch real-time events arrive.
 
 ---
