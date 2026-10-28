@@ -10,7 +10,7 @@ import { playgroundRoute } from './routes/playground.ts';
 import { broker } from './lib/broker.ts';
 import { closeRedis } from './lib/redis.ts';
 
-const app = new Hono();
+export const app = new Hono();
 
 // Global middleware
 app.use('*', corsMiddleware);
