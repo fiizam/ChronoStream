@@ -125,6 +125,61 @@ describe('API Route Handlers', () => {
     expect(typeof data.subscribers).toBe('number');
   });
 
+  it('POST /publish/batch returns 400 when events array is empty or missing', async () => {
+    const missingRes = await app.request('/publish/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.PUBLISH_SECRET_KEY}`,
+      },
+      body: JSON.stringify({}),
+    });
+    expect(missingRes.status).toBe(400);
+
+    const emptyRes = await app.request('/publish/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.PUBLISH_SECRET_KEY}`,
+      },
+      body: JSON.stringify({ events: [] }),
+    });
+    expect(emptyRes.status).toBe(400);
+  });
+
+  it('POST /publish/batch returns 200 and broadcasts multiple events with valid payload', async () => {
+    const res = await app.request('/publish/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.PUBLISH_SECRET_KEY}`,
+      },
+      body: JSON.stringify({
+        events: [
+          {
+            channel: 'orders',
+            event: 'order.created',
+            data: { orderId: 'ord_1' },
+          },
+          {
+            channel: 'notifications',
+            event: 'user.alert',
+            data: { message: 'Order confirmed' },
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.count).toBe(2);
+    expect(Array.isArray(data.results)).toBe(true);
+    expect(data.results).toHaveLength(2);
+    expect(data.results[0].channel).toBe('orders');
+    expect(data.results[1].channel).toBe('notifications');
+  });
+
   it('POST /auth/token returns 401 without Authorization header', async () => {
     const res = await app.request('/auth/token', {
       method: 'POST',
