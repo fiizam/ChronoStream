@@ -37,6 +37,7 @@ app.get('/', (c) => {
       playground: 'GET /playground',
       stream: 'GET /stream?channel=:name[&token=:hmacToken]',
       publish: 'POST /publish (Bearer token required)',
+      publishBatch: 'POST /publish/batch (Bearer token required)',
       authToken: 'POST /auth/token (Bearer token required)',
     },
   });
