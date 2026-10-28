@@ -44,6 +44,7 @@ export interface EnvConfig {
   ALLOWED_ORIGINS: string[];
   HISTORY_SIZE: number;
   HISTORY_TTL_SECONDS: number;
+  RATE_LIMIT_MAX: number;
 }
 
 export type ActiveStream = SSEStreamingApi;

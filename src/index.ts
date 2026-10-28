@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { env, getEnvSummary } from './config/env.ts';
 import { corsMiddleware } from './middleware/cors.ts';
+import { rateLimitMiddleware } from './middleware/rateLimit.ts';
 import { healthRoute } from './routes/health.ts';
 import { publishRoute } from './routes/publish.ts';
 import { streamRoute } from './routes/stream.ts';
@@ -13,6 +14,9 @@ const app = new Hono();
 
 // Global middleware
 app.use('*', corsMiddleware);
+app.use('/publish', rateLimitMiddleware);
+app.use('/publish/batch', rateLimitMiddleware);
+app.use('/auth/token', rateLimitMiddleware);
 
 // Request logger for debugging & observability
 app.use('*', async (c, next) => {
