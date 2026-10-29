@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 import { env } from '../src/config/env';
 import { healthRoute } from '../src/routes/health';
+import { channelsRoute } from '../src/routes/channels';
 import { publishRoute } from '../src/routes/publish';
 import { streamRoute } from '../src/routes/stream';
 import { authRoute } from '../src/routes/auth';
@@ -10,6 +11,7 @@ import { redisPub, redisSub } from '../src/lib/redis';
 
 const app = new Hono();
 app.route('/', healthRoute);
+app.route('/', channelsRoute);
 app.route('/', publishRoute);
 app.route('/', streamRoute);
 app.route('/', authRoute);
@@ -289,5 +291,35 @@ describe('API Route Handlers', () => {
     expect(res.headers.get('Content-Type')).toContain('text/html');
     const html = await res.text();
     expect(html).toContain('ChronoStream');
+  });
+
+  it('GET /channels returns 200 with presence statistics', async () => {
+    const res = await app.request('/channels');
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.channelsCount).toBeDefined();
+    expect(data.totalClientsCount).toBeDefined();
+    expect(data.channels).toBeDefined();
+  });
+
+  it('GET /channels?prefix=... filters active channels by prefix', async () => {
+    const res = await app.request('/channels?prefix=orders');
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.channelsCount).toBeDefined();
+    expect(data.totalClientsCount).toBeDefined();
+    expect(typeof data.channels).toBe('object');
+    for (const ch of Object.keys(data.channels)) {
+      expect(ch.startsWith('orders')).toBe(true);
+    }
+  });
+
+  it('GET /channels/:name returns 200 with channel subscriber count and active status', async () => {
+    const res = await app.request('/channels/orders');
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.channel).toBe('orders');
+    expect(typeof data.subscribers).toBe('number');
+    expect(typeof data.active).toBe('boolean');
   });
 });

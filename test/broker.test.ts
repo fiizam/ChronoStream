@@ -4,7 +4,9 @@ import type { SSEStreamingApi } from 'hono/streaming';
 
 class MockRedisHub {
   public subscribedChannels = new Set<string>();
+  public subscribedPatterns = new Set<string>();
   public subListeners: Array<(channel: string, message: string) => void> = [];
+  public psubListeners: Array<(pattern: string, channel: string, message: string) => void> = [];
 
   createSubClient() {
     return {
@@ -12,6 +14,8 @@ class MockRedisHub {
       on: (event: string, callback: (...args: any[]) => void) => {
         if (event === 'message') {
           this.subListeners.push(callback);
+        } else if (event === 'pmessage') {
+          this.psubListeners.push(callback);
         }
         return this;
       },
@@ -21,6 +25,14 @@ class MockRedisHub {
       },
       unsubscribe: async (channel: string) => {
         this.subscribedChannels.delete(channel);
+        return 1;
+      },
+      psubscribe: async (pattern: string) => {
+        this.subscribedPatterns.add(pattern);
+        return 1;
+      },
+      punsubscribe: async (pattern: string) => {
+        this.subscribedPatterns.delete(pattern);
         return 1;
       },
     };
@@ -34,6 +46,14 @@ class MockRedisHub {
         if (this.subscribedChannels.has(channel)) {
           for (const cb of this.subListeners) {
             cb(channel, message);
+          }
+        }
+        for (const pattern of this.subscribedPatterns) {
+          const escaped = pattern.replace(/[-/\\^$+?.()|[\]{}]/g, '\\$&').replace(/\*/g, '.*');
+          if (new RegExp(`^${escaped}$`).test(channel)) {
+            for (const cb of this.psubListeners) {
+              cb(pattern, channel, message);
+            }
           }
         }
         return 1;
@@ -193,5 +213,39 @@ describe('ChannelBroker Multiplexing & Zero Memory Leak', () => {
     expect(client.written.length).toBe(1);
     expect(client.written[0].event).toBe('message');
     expect(client.written[0].data).toBe('plain-text-payload');
+  });
+
+  it('delivers events to wildcard pattern subscribers (orders:*) when publishing to sub-channels', async () => {
+    const client = createMockStream();
+    await testBroker.addClient('orders:*', client.stream);
+
+    expect(hub.subscribedPatterns.has('orders:*')).toBe(true);
+
+    await testBroker.publish('orders:101', {
+      channel: 'orders:101',
+      event: 'order.created',
+      data: { orderId: 101 },
+    });
+
+    await testBroker.publish('orders:202', {
+      channel: 'orders:202',
+      event: 'order.updated',
+      data: { orderId: 202 },
+    });
+
+    // Other channel should not match
+    await testBroker.publish('users:99', {
+      channel: 'users:99',
+      event: 'user.created',
+      data: { userId: 99 },
+    });
+
+    await new Promise((r) => setTimeout(r, 15));
+
+    expect(client.written.length).toBe(2);
+    expect(client.written[0].event).toBe('order.created');
+    expect(JSON.parse(client.written[0].data)).toEqual({ orderId: 101 });
+    expect(client.written[1].event).toBe('order.updated');
+    expect(JSON.parse(client.written[1].data)).toEqual({ orderId: 202 });
   });
 });
