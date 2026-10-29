@@ -18,6 +18,23 @@ export class ChannelBroker {
     this.redisSub.on('message', (channel: string, rawMessage: string) => {
       this.handleIncomingMessage(channel, rawMessage);
     });
+
+    if (typeof (this.redisSub as any).on === 'function') {
+      (this.redisSub as any).on('pmessage', (pattern: string, channel: string, rawMessage: string) => {
+        this.handleIncomingMessage(channel, rawMessage, pattern);
+      });
+    }
+  }
+
+  private isPattern(channel: string): boolean {
+    return channel.includes('*');
+  }
+
+  private matchPattern(pattern: string, channel: string): boolean {
+    const escaped = pattern
+      .replace(/[-/\\^$+?.()|[\]{}]/g, '\\$&')
+      .replace(/\*/g, '.*');
+    return new RegExp(`^${escaped}$`).test(channel);
   }
 
   /**
@@ -36,8 +53,13 @@ export class ChannelBroker {
 
     if (isFirstClient) {
       try {
-        await this.redisSub.subscribe(channel);
-        console.log(`[ChronoStream:broker] Subscribed to Redis channel "${channel}" (first client)`);
+        if (this.isPattern(channel) && typeof (this.redisSub as any).psubscribe === 'function') {
+          await (this.redisSub as any).psubscribe(channel);
+          console.log(`[ChronoStream:broker] Pattern subscribed to Redis channel "${channel}" (first client)`);
+        } else {
+          await this.redisSub.subscribe(channel);
+          console.log(`[ChronoStream:broker] Subscribed to Redis channel "${channel}" (first client)`);
+        }
       } catch (err) {
         // Rollback state if subscription fails
         clientSet.delete(stream);
@@ -62,8 +84,13 @@ export class ChannelBroker {
     if (clientSet.size === 0) {
       this.channels.delete(channel);
       try {
-        await this.redisSub.unsubscribe(channel);
-        console.log(`[ChronoStream:broker] Unsubscribed from Redis channel "${channel}" (0 local listeners)`);
+        if (this.isPattern(channel) && typeof (this.redisSub as any).punsubscribe === 'function') {
+          await (this.redisSub as any).punsubscribe(channel);
+          console.log(`[ChronoStream:broker] Pattern unsubscribed from Redis channel "${channel}" (0 local listeners)`);
+        } else {
+          await this.redisSub.unsubscribe(channel);
+          console.log(`[ChronoStream:broker] Unsubscribed from Redis channel "${channel}" (0 local listeners)`);
+        }
       } catch (err) {
         console.error(`[ChronoStream:broker] Error unsubscribing from "${channel}":`, err);
       }
@@ -193,16 +220,41 @@ export class ChannelBroker {
     };
   }
 
+  private async dispatchToClientSet(
+    channelKey: string,
+    clientSet: Set<SSEStreamingApi>,
+    event: string,
+    data: string,
+    id?: string,
+    retry?: number
+  ): Promise<void> {
+    const deadStreams: SSEStreamingApi[] = [];
+
+    for (const stream of clientSet) {
+      try {
+        await stream.writeSSE({
+          event,
+          data,
+          id,
+          retry,
+        });
+      } catch {
+        deadStreams.push(stream);
+      }
+    }
+
+    if (deadStreams.length > 0) {
+      for (const deadStream of deadStreams) {
+        await this.removeClient(channelKey, deadStream);
+      }
+    }
+  }
+
   /**
    * Internal message handler supporting both ChronoStream JSON payloads
    * and raw strings from third-party publishers (Laravel, Python, Go, etc.).
    */
-  private async handleIncomingMessage(channel: string, rawMessage: string): Promise<void> {
-    const clientSet = this.channels.get(channel);
-    if (!clientSet || clientSet.size === 0) {
-      return;
-    }
-
+  private async handleIncomingMessage(channel: string, rawMessage: string, pattern?: string): Promise<void> {
     let event = 'message';
     let data = rawMessage;
     let id: string | undefined;
@@ -220,26 +272,27 @@ export class ChannelBroker {
       // Raw string payload delivered directly
     }
 
-    const deadStreams: SSEStreamingApi[] = [];
-
-    // Fan-out to all active streams connected to this channel
-    for (const stream of clientSet) {
-      try {
-        await stream.writeSSE({
-          event,
-          data,
-          id,
-          retry,
-        });
-      } catch {
-        deadStreams.push(stream);
+    if (pattern) {
+      const clientSet = this.channels.get(pattern);
+      if (clientSet && clientSet.size > 0) {
+        await this.dispatchToClientSet(pattern, clientSet, event, data, id, retry);
       }
+      return;
     }
 
-    // Clean up streams that errored during write
-    if (deadStreams.length > 0) {
-      for (const deadStream of deadStreams) {
-        await this.removeClient(channel, deadStream);
+    const clientSet = this.channels.get(channel);
+    if (clientSet && clientSet.size > 0) {
+      await this.dispatchToClientSet(channel, clientSet, event, data, id, retry);
+    }
+
+    // Fallback if psubscribe is not supported (e.g. simple mock Redis emitting only 'message')
+    if (typeof (this.redisSub as any).psubscribe !== 'function') {
+      for (const [key, set] of this.channels.entries()) {
+        if (key !== channel && this.isPattern(key) && this.matchPattern(key, channel)) {
+          if (set && set.size > 0) {
+            await this.dispatchToClientSet(key, set, event, data, id, retry);
+          }
+        }
       }
     }
   }
@@ -249,8 +302,18 @@ export class ChannelBroker {
    */
   async close(): Promise<void> {
     const activeChannels = Array.from(this.channels.keys());
-    if (activeChannels.length > 0) {
-      await this.redisSub.unsubscribe(...activeChannels);
+    const exactChannels = activeChannels.filter((ch) => !this.isPattern(ch));
+    const patternChannels = activeChannels.filter((ch) => this.isPattern(ch));
+
+    if (exactChannels.length > 0) {
+      await this.redisSub.unsubscribe(...exactChannels);
+    }
+    if (patternChannels.length > 0) {
+      if (typeof (this.redisSub as any).punsubscribe === 'function') {
+        await (this.redisSub as any).punsubscribe(...patternChannels);
+      } else {
+        await this.redisSub.unsubscribe(...patternChannels);
+      }
     }
     this.channels.clear();
     this.history.clear();
