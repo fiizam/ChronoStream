@@ -3,6 +3,7 @@ import { env, getEnvSummary } from './config/env';
 import { corsMiddleware } from './middleware/cors';
 import { rateLimitMiddleware } from './middleware/rateLimit';
 import { healthRoute } from './routes/health';
+import { channelsRoute } from './routes/channels';
 import { publishRoute } from './routes/publish';
 import { streamRoute } from './routes/stream';
 import { authRoute } from './routes/auth';
@@ -34,10 +35,11 @@ app.get('/', (c) => {
   return c.json({
     service: 'ChronoStream',
     description: 'Server-Sent Events (SSE) Real-Time Broadcasting Engine',
-    version: '1.1.0',
+    version: '1.2.0',
     documentation: 'https://github.com/fiizam/ChronoStream',
     endpoints: {
       health: 'GET /health',
+      channels: 'GET /channels',
       playground: 'GET /playground',
       stream: 'GET /stream?channel=:name[&token=:hmacToken]',
       publish: 'POST /publish (Bearer token required)',
@@ -49,6 +51,7 @@ app.get('/', (c) => {
 
 // Mount modular sub-routes
 app.route('/', healthRoute);
+app.route('/', channelsRoute);
 app.route('/', publishRoute);
 app.route('/', streamRoute);
 app.route('/', authRoute);

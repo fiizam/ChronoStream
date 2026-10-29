@@ -82,6 +82,7 @@ Open `http://localhost:3000/playground` in your browser to test live connections
 
 | Method | Endpoint | Auth | Description |
 | :--- | :--- | :--- | :--- |
+| `GET` | `/channels[?prefix=...]` | Public | Inspect active channels, subscriber counts, and presence (`/channels/:name`). |
 | `GET` | `/stream?channel=ch1,ch2[&token=...]` | Public / HMAC | Connect to one or more SSE channels. Supports `Last-Event-ID` header for replay. |
 | `POST` | `/publish` | Bearer Token | Broadcast an event `{ channel, event?, data, id?, retry? }` to a channel. |
 | `POST` | `/publish/batch` | Bearer Token | Broadcast up to 50 events at once `{ events: [...] }`. |
